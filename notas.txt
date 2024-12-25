@@ -1,0 +1,86 @@
+TODO: AUTH MS 
+
+1. crear proyecto
+
+nest new auth-ms 
+
+2. eliminar app-controller , test, app-service 
+
+3. instalar nats yjoi
+
+npm i --save nats y joi
+
+4. instalar dtenv 
+
+npm i --save dotenv 
+
+5. npm i --save @nestjs/microservices
+
+6 instalar class validator y transpoorter 
+
+npm i --save class-validator class-transformer
+
+7. crear archivo .env con DATABASE_URL Y PORT 
+
+8. crear archivo config/envs 
+
+9. configurar main para nats y microservicios 
+
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { envs } from './config/envs';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { Logger, ValidationPipe } from '@nestjs/common';
+
+async function bootstrap() {
+  const logger = new Logger('Auth-Ms');
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+    AppModule,
+    {
+      //  TODO: CAMBIANDO A NATS
+
+      // transport: Transport.TCP,
+      transport: Transport.NATS,
+
+      options: {
+        // port: envs.port,
+        // TODO: 8 HORAS, SERVERSSSSSSS CON ESEEEE SSSSSSSSSSS
+        servers: envs.natsServers,
+      },
+    },
+  );
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
+  await app.listen();
+  logger.log(`AUTH MS is running on: ${envs.port}`);
+}
+bootstrap();
+
+
+10. creaer bd en este caso mongodb y traer la cadena de conexion 
+
+11. crear repo en dondwe corresponda en ete caso en microservicios segun tengo ordenado mi git para este prouyecto
+
+12. crear gitignore 
+
+13. adderir codigo al repo 
+
+ir carpeta prodcut launcher 
+
+15. añadir submodulo trayendo la url de git del repo de auth-ms 
+
+git submodule add <linkgit>
+
+16. generar en auth ms 
+
+nest g res microservices 
+
+
+
+
