@@ -24,6 +24,24 @@ npm i --save class-validator class-transformer
 
 8. crear archivo config/envs 
 
+8.1 acrtualizar yaml de product launcher
+
+8.2 EN LA VARIABLE DE ENTORNO AGREGAR DESPUES DEL SLACH EN LA CADENA DE CONEXION 
+
+AuthDB
+
+  auth-ms:
+    build: ./auth-ms
+    volumes:
+      - ./auth-ms/src:/usr/src/app/src
+    command: npm run start:dev
+    environment:
+      - PORT=3004
+      - NATS_SERVERS=nats://nats-server:4222
+      - DATABASE_URL=${AUTH_DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+  
+
 9. configurar main para nats y microservicios 
 
 import { NestFactory } from '@nestjs/core';
@@ -81,6 +99,221 @@ git submodule add <linkgit>
 
 nest g res microservices 
 
+17 cambiar los messagepattern a nomenclatura create.user.register 
 
+18 crear el auth en gateway usando nest g res auth eligiendo microservicio y limpiando luego 
+
+19 llamar en el authmodule generado con el res de arriba en los imports al natsmodule 
+
+20 inyectar en el constructor del controlador del auth crfeado en gateway 
+
+  @Inject(NATS_SERVICE) private readonly client: ClientProxy
+
+21 crear dto login-user.dto.ts tanto en client-gateway auth como en el auth-ms 
+
+22 tipar los metodos usar dtos en client y en auth
+
+
+TODO: POR SI NO REFRESCA AL HACER CAMBIOS 
+
+AGREGAR ESTO EN EL TSCONFIG.JSON 
+
+ "watchOptions": {
+    "watchFile": "dynamicPriorityPolling",
+    "watchDirectory": "dynamicPriorityPolling",
+    "excludeDirectories": ["**/node_modules", "dist"]
+ }
+
+
+ 23 en el authcontroller pondremos el @Payload() y el nombre de la variable  mas el tipo pro ejemplo 
+ registerUserDto: RegistgerUserDto 
+
+ el flujo es 
+
+ en llega al gateway la info -> se va con this.client.send( <nombre del patern en el auth-ms>)
+
+ en este caso  @MessagePattern('auth.register.user') 
+
+ y lo recibimos como parametro en la funcion del controlador del auth-ms 
+
+ en este caso  registerUser(@Payload() registerUserDto: RegisterUserDto)
+
+ de ahi enviamos la info al servicio del auth ms 
+
+ this.authService.register(registerUserDto)
+
+ todo9 tipado con los dto 
+
+ TODO: PARA CLASS VALIDATOR Y CLASS TRANSFORMER 
+
+ RECORDAR QUE EN EL MAIN 
+
+   app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
+PARA HACER FUNCIONAR LAS VALIDACIONES
+
+24 INSTALAR PRISMA 
+
+npm i prisma -D 
+
+25 ejecutar npx prisma init
+
+26 crear schema modelo User en este caso 
+
+27 generar cliente ejecutando 
+
+npx prisma generate
+
+28 agregar essta linea bajo el npm:start en el package json 
+
+"prisma:docker":  "npx prisma generate",
+
+29 Actualizar package start:dev asi 
+
+"start:dev": "npm run prisma:docker && nest start --watch",
+
+30 volver a auth-ms y extender clase AuthService EN EL AUTH-MS a PrismClient e implementar OnmoduleInit 
+
+basicamente dejarlo asi :
+
+export class AuthService extends PrismaClient implements OnModuleInit{
+
+31 instanciar conexxion en la clase AuthService asi :
+
+  onModuleInit() {
+    this.$connect();
+    this.logger.log('MongoDB Connected');
+  }
+
+
+32 CREAR FUNCIONALIDADES DE REGISTRO
+
+33 instalar bcrypt
+
+npm i bcrypt
+
+34 llamar a bcrypt, dara unos puntitos en la importacion y como solucion dara  
+
+instalar types 
+
+instalar 
+
+35 instalar jwt 
+
+npm install --save @nestjs/jwt
+
+TODO: INYECCION DE SERVCIO TIP 
+cuando hacemos la inyeccion de un servicio necesariamente usaremos la importacion de algun modulo 
+
+36 por lo que en el authmodule donde utilizare jwt actualizar el imports asi 
+
+import { Module } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { AuthController } from './auth.controller';
+import { JwtModule } from '@nestjs/jwt';
+
+@Module({
+  controllers: [AuthController],
+  providers: [AuthService],
+  imports: [
+    JwtModule.register({
+      global: true,
+      secret: jwtConstants.secret,
+      signOptions: { expiresIn: '60s' }
+    })
+  ]
+})
+export class AuthModule {}
+
+
+37 definir jwt secret 
+
+en el archivo envs
+en env del auth -ms 
+en el env del proyect launcher 
+
+
+38 llamar en el authservice el constructor 
+
+para inyectar el jwt service 
+
+  constructor(private readonly jwtService: JwtService) {
+    super();
+  }
+
+
+39 en la carpeta de auth crear carpeta interface y declarar como ira ekl payload 
+en un archivo llmaado jwt-payload.interface.ts
+
+
+export interface JwtPayload {
+  id: string;
+  email: string;
+  name: string;
+}
+
+
+40 IR A VERIFY TOKEN 
+
+41 implementar guard que pida token EN EL GATEWAY AUTH 
+
+ir a docu https://docs.nestjs.com/security/authentication#implementing-the-authentication-guard 
+
+
+crear el directorio guard yt el archivo lo copimamos y limpiamos lo que no ocuparemos 
+
+
+import {
+    CanActivate,
+    ExecutionContext,
+    Injectable,
+    UnauthorizedException,
+  } from '@nestjs/common';
+  import { JwtService } from '@nestjs/jwt';
+  import { jwtConstants } from './constants';
+  import { Request } from 'express';
+  
+  @Injectable()
+  export class AuthGuard implements CanActivate {
+    constructor(private jwtService: JwtService) {}
+  
+    async canActivate(context: ExecutionContext): Promise<boolean> {
+      const request = context.switchToHttp().getRequest();
+      const token = this.extractTokenFromHeader(request);
+      if (!token) {
+        throw new UnauthorizedException();
+      }
+      try {
+        const payload = await this.jwtService.verifyAsync(
+          token,
+          {
+            secret: jwtConstants.secret
+          }
+        );
+        // 💡 We're assigning the payload to the request object here
+        // so that we can access it in our route handlers
+        request['user'] = payload;
+      } catch {
+        throw new UnauthorizedException();
+      }
+      return true;
+    }
+  
+    private extractTokenFromHeader(request: Request): string | undefined {
+      const [type, token] = request.headers.authorization?.split(' ') ?? [];
+      return type === 'Bearer' ? token : undefined;
+    }
+  }
+  
+LA FUNCION VERIFY TOKEN QUE VIVE EN AUTH MS 
+
+LA MANDAMOS A ALLAMAR EN EL GUARD DEL GATEWAY USANDO NATS 
+
+EN DONDE NECESITAMOS VERIFICAR EL TOKEN
 
 
