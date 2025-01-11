@@ -60,7 +60,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const { password: ___, ...rest } = user;
 
       return {
-        user: rest,
+        rest,
 
         // TODO: EN EL REGSITRO MANDAMOS UN TOKEN TAMBIEN PARA QUE EL USUARIO
         // NO TENGA QUE LOGUEARSE DESPUES DE REGISTRARSE
@@ -103,7 +103,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         });
       }
 
-      console.log('user', user);
+      // console.log('user', user);
 
       // TODO: NO DEVOLVER EL PASWORD
       // para no devolver el password
@@ -111,7 +111,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const { password: ___, ...rest } = user;
 
       return {
-        user: rest,
+        user: {
+          // para pruebas solamente , despues quitar el objeto y devolver restk
+          rest
+        },
         token: await this.signJwt(rest),
       };
     } catch (error) {
@@ -138,6 +141,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         token: await this.signJwt(user),
       };
     } catch (error) {
+      console.log('error', error);
+      
       throw new RpcException({
         message: 'Invalid token',
         status: 400,
